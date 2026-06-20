@@ -1103,6 +1103,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
               applyUsageLimits: () => Effect.void,
             },
             adapter: {} as ProviderInstance["adapter"],
+            orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
             textGeneration: {} as ProviderInstance["textGeneration"],
           } satisfies ProviderInstance;
           const instanceRegistryLayer = Layer.succeed(
@@ -1530,6 +1531,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, ServerSettingsModule.layerTest(), Te
               applyUsageLimits: () => Effect.void,
             },
             adapter: {} as ProviderInstance["adapter"],
+            orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
             textGeneration: {} as ProviderInstance["textGeneration"],
           } satisfies ProviderInstance;
           const instanceRegistryLayer = Layer.succeed(
