@@ -2592,8 +2592,20 @@ function ChatViewContent(props: ChatViewProps) {
         visibleTurnItems: serverVisibleTurnItems,
         optimisticMessages: optimisticUserMessages,
         attachmentUrlById: serverAttachmentUrlById,
+        ...(serverThread === null
+          ? {}
+          : {
+              attempts: serverThread.projection.attempts,
+              nodes: serverThread.projection.nodes,
+            }),
       }),
-    [optimisticUserMessages, serverVisibleTurnItems, serverAttachmentUrlById],
+    [
+      optimisticUserMessages,
+      serverVisibleTurnItems,
+      serverAttachmentUrlById,
+      serverThread?.projection.attempts,
+      serverThread?.projection.nodes,
+    ],
   );
   const draftTimelineEntries = useMemo(
     () =>
