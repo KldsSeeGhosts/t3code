@@ -27,6 +27,7 @@ import {
   deriveLatestThreadRun,
   deriveThreadRuntime,
 } from "@t3tools/client-runtime/state/thread-execution";
+import { resolveThreadProviderSession } from "@t3tools/client-runtime/state/thread-workflows";
 import { derivePendingThreadRequests } from "@t3tools/client-runtime/state/thread-requests";
 import {
   parseScopedThreadKey,
@@ -1573,6 +1574,12 @@ function ChatViewContent(props: ChatViewProps) {
     () => (serverProjection === null ? null : deriveThreadRuntime(serverProjection)),
     [serverProjection],
   );
+  const activeProviderSession = useMemo(
+    () => (serverProjection === null ? null : resolveThreadProviderSession(serverProjection)),
+    [serverProjection],
+  );
+  const supportsProviderSwitchingViaHandoff =
+    activeProviderSession?.capabilities.sessions.supportsProviderSwitchingViaHandoff === true;
   const activeLatestRun = isServerThread ? serverLatestRun : (activeThread?.latestRun ?? null);
   const activeRuntime = isServerThread ? serverRuntime : (activeThread?.runtime ?? null);
   const parentSubagentThreadId =
@@ -2091,6 +2098,7 @@ function ChatViewContent(props: ChatViewProps) {
     selectedProvider: selectedProviderByThreadId,
     threadProvider,
   });
+  const modelPickerLockedProvider = supportsProviderSwitchingViaHandoff ? null : lockedProvider;
   // Once a thread selects an environment, never substitute the primary
   // environment's config while the selected environment is still loading.
   const serverConfig = activeThread
@@ -2133,7 +2141,8 @@ function ChatViewContent(props: ChatViewProps) {
     providerStatuses,
     selectedProviderByThreadId ?? threadProvider,
   );
-  const selectedProvider: ProviderDriverKind = lockedProvider ?? unlockedSelectedProvider;
+  const selectedProvider: ProviderDriverKind =
+    modelPickerLockedProvider ?? unlockedSelectedProvider;
   const phase = derivePhase(activeRuntime);
   const pendingRequests = useMemo(
     () =>
@@ -6065,13 +6074,14 @@ function ChatViewContent(props: ChatViewProps) {
       const reason = getStartedThreadModelChangeBlockReason({
         providers: providerStatuses,
         hasStartedSession: activeRuntime !== null,
+        supportsProviderSwitchingViaHandoff,
         currentModelSelection: activeThread.modelSelection,
         currentProviderInstanceId: activeRuntime?.providerInstanceId ?? null,
         nextModelSelection: { instanceId, model },
       });
       return reason ? `${reason.description} Start a new thread to use this model.` : null;
     },
-    [activeRuntime, activeThread, providerStatuses],
+    [activeRuntime, activeThread, providerStatuses, supportsProviderSwitchingViaHandoff],
   );
 
   const onProviderModelSelect = useCallback(
@@ -6083,6 +6093,7 @@ function ChatViewContent(props: ChatViewProps) {
       const entry = providerStatuses.find((snapshot) => snapshot.instanceId === instanceId);
       const resolvedDriverKind = entry?.driver ?? null;
       if (
+        !supportsProviderSwitchingViaHandoff &&
         lockedProvider !== null &&
         resolvedDriverKind !== null &&
         resolvedDriverKind !== lockedProvider
@@ -6090,7 +6101,11 @@ function ChatViewContent(props: ChatViewProps) {
         scheduleComposerFocus();
         return;
       }
-      if (lockedProvider !== null && activeRuntime?.providerInstanceId) {
+      if (
+        !supportsProviderSwitchingViaHandoff &&
+        lockedProvider !== null &&
+        activeRuntime?.providerInstanceId
+      ) {
         const currentEntry = providerStatuses.find(
           (snapshot) => snapshot.instanceId === activeRuntime.providerInstanceId,
         );
@@ -6120,6 +6135,7 @@ function ChatViewContent(props: ChatViewProps) {
       const modelChangeBlockReason = getStartedThreadModelChangeBlockReason({
         providers: providerStatuses,
         hasStartedSession: activeRuntime !== null,
+        supportsProviderSwitchingViaHandoff,
         currentModelSelection: activeThread.modelSelection,
         currentProviderInstanceId: activeRuntime?.providerInstanceId ?? null,
         nextModelSelection,
@@ -6144,6 +6160,7 @@ function ChatViewContent(props: ChatViewProps) {
       activeThread,
       activeRuntime,
       lockedProvider,
+      supportsProviderSwitchingViaHandoff,
       scheduleComposerFocus,
       setComposerDraftModelSelection,
       setStickyComposerModelSelection,
@@ -6653,7 +6670,7 @@ function ChatViewContent(props: ChatViewProps) {
                       planSidebarOpen={planSidebarOpen}
                       runtimeMode={runtimeMode}
                       interactionMode={interactionMode}
-                      lockedProvider={lockedProvider}
+                      lockedProvider={modelPickerLockedProvider}
                       providerStatuses={providerStatuses as ServerProvider[]}
                       activeProjectDefaultModelSelection={activeProject?.defaultModelSelection}
                       activeThreadModelSelection={activeThread?.modelSelection}
