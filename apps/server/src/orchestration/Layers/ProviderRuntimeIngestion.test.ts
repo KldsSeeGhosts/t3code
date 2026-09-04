@@ -2220,10 +2220,7 @@ describe("ProviderRuntimeIngestion", () => {
       threadId: asThreadId("thread-1"),
       turnId,
     });
-    await waitForThread(
-      harness.readModel,
-      (thread) => thread.session?.activeTurnId === turnId,
-    );
+    await waitForThread(harness.readModel, (thread) => thread.session?.activeTurnId === turnId);
 
     for (const [itemId, delta] of [
       ["item-buffered-first", "first item"],
@@ -2251,12 +2248,11 @@ describe("ProviderRuntimeIngestion", () => {
       payload: { state: "completed" },
     });
 
-    const thread = await waitForThread(
-      harness.readModel,
-      (entry) =>
-        entry.messages.some((message: ProviderRuntimeTestMessage) =>
+    const thread = await waitForThread(harness.readModel, (entry) =>
+      entry.messages.some(
+        (message: ProviderRuntimeTestMessage) =>
           message.id === "assistant:item-buffered-second" && !message.streaming,
-        ),
+      ),
     );
     expect(thread.messages).toEqual(
       expect.arrayContaining([
@@ -2264,6 +2260,175 @@ describe("ProviderRuntimeIngestion", () => {
         expect.objectContaining({ id: "assistant:item-buffered-second", text: "second item" }),
       ]),
     );
+  });
+
+  it("keeps interleaved buffered assistant deltas with their provider items", async () => {
+    const harness = await createHarness();
+    const base = {
+      provider: ProviderDriverKind.make("codex"),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-buffered-interleaved-items"),
+    };
+
+    await harness.emitAndDrain([
+      { ...base, type: "turn.started", eventId: asEventId("interleaved-start") },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("interleaved-a-1"),
+        itemId: asItemId("item-interleaved-a"),
+        payload: { streamKind: "assistant_text", delta: "first " },
+      },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("interleaved-b"),
+        itemId: asItemId("item-interleaved-b"),
+        payload: { streamKind: "assistant_text", delta: "second" },
+      },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("interleaved-a-2"),
+        itemId: asItemId("item-interleaved-a"),
+        payload: { streamKind: "assistant_text", delta: "third" },
+      },
+      {
+        ...base,
+        type: "turn.completed",
+        eventId: asEventId("interleaved-completed"),
+        payload: { state: "completed" },
+      },
+    ]);
+
+    const messages = (await harness.readModel()).threads[0]?.messages ?? [];
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "assistant:item-interleaved-a", text: "first third" }),
+        expect.objectContaining({ id: "assistant:item-interleaved-b", text: "second" }),
+      ]),
+    );
+    expect(
+      messages.some((message) => message.id === "assistant:item-interleaved-a:segment:1"),
+    ).toBe(false);
+  });
+
+  it("finalizes every open assistant item at an approval boundary", async () => {
+    const harness = await createHarness();
+    const base = {
+      provider: ProviderDriverKind.make("codex"),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-buffered-multiple-items-approval"),
+    };
+
+    await harness.emitAndDrain([
+      { ...base, type: "turn.started", eventId: asEventId("multiple-approval-start") },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("multiple-approval-a"),
+        itemId: asItemId("item-multiple-approval-a"),
+        payload: { streamKind: "assistant_text", delta: "first item" },
+      },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("multiple-approval-b"),
+        itemId: asItemId("item-multiple-approval-b"),
+        payload: { streamKind: "assistant_text", delta: "second item" },
+      },
+      {
+        ...base,
+        type: "request.opened",
+        eventId: asEventId("multiple-approval-opened"),
+        requestId: ApprovalRequestId.make("req-multiple-approval"),
+        payload: { requestType: "command_execution_approval", detail: "pwd" },
+      },
+    ]);
+
+    const messages = (await harness.readModel()).threads[0]?.messages ?? [];
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "assistant:item-multiple-approval-a",
+          text: "first item",
+          streaming: false,
+        }),
+        expect.objectContaining({
+          id: "assistant:item-multiple-approval-b",
+          text: "second item",
+          streaming: false,
+        }),
+      ]),
+    );
+  });
+
+  it("completes only the matching assistant item when items overlap", async () => {
+    const harness = await createHarness({ serverSettings: { enableLegacyTokenStreaming: true } });
+    const base = {
+      provider: ProviderDriverKind.make("codex"),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-streaming-overlapping-items"),
+    };
+
+    await harness.emitAndDrain([
+      { ...base, type: "turn.started", eventId: asEventId("overlap-start") },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("overlap-a"),
+        itemId: asItemId("item-overlap-a"),
+        payload: { streamKind: "assistant_text", delta: "first" },
+      },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("overlap-b-1"),
+        itemId: asItemId("item-overlap-b"),
+        payload: { streamKind: "assistant_text", delta: "second" },
+      },
+      {
+        ...base,
+        type: "item.completed",
+        eventId: asEventId("overlap-a-completed"),
+        itemId: asItemId("item-overlap-a"),
+        payload: { itemType: "assistant_message", status: "completed" },
+      },
+    ]);
+
+    let messages = (await harness.readModel()).threads[0]?.messages ?? [];
+    expect(messages.find((message) => message.id === "assistant:item-overlap-a")?.streaming).toBe(
+      false,
+    );
+    expect(messages.find((message) => message.id === "assistant:item-overlap-b")?.streaming).toBe(
+      true,
+    );
+
+    await harness.emitAndDrain([
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("overlap-b-2"),
+        itemId: asItemId("item-overlap-b"),
+        payload: { streamKind: "assistant_text", delta: " item" },
+      },
+      {
+        ...base,
+        type: "item.completed",
+        eventId: asEventId("overlap-b-completed"),
+        itemId: asItemId("item-overlap-b"),
+        payload: { itemType: "assistant_message", status: "completed" },
+      },
+    ]);
+
+    messages = (await harness.readModel()).threads[0]?.messages ?? [];
+    expect(messages.find((message) => message.id === "assistant:item-overlap-b")).toMatchObject({
+      text: "second item",
+      streaming: false,
+    });
   });
 
   it("flushes and completes buffered assistant text when an approval request opens", async () => {
