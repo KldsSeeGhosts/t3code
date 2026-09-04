@@ -140,17 +140,42 @@ It is backed by `~/.local/bin/t3code-fork`, which:
 
 - runs the built server on fixed port `8960` (override with `T3_FORK_PORT`),
 - uses an isolated data dir `~/.t3-fork` — threads and settings do not mix
-  with the official desktop app's shared install; first launch asks the
-  browser to pair (`node apps/server/dist/bin.mjs pair --base-dir
-~/.t3-fork` prints a token if you need to re-pair),
-- logs to `~/.local/state/t3code-fork/server.log`.
+  with the official desktop app's shared install,
+- opens a freshly minted pairing URL (`pair#token=…`) instead of the bare
+  origin, so the browser is always authenticated — no manual code entry,
+- normally leaves serving to the `t3code-fork` systemd user unit
+  (`~/.config/systemd/user/t3code-fork.service`; logs via `journalctl --user
+-u t3code-fork`), and only starts a fallback process when that service is
+  inactive.
 
 The UI is served from `apps/web/dist` (auto-discovered). After syncing
 upstream, rebuild both bundles or the launcher serves a stale or missing UI:
 
 ```bash
 pnpm --filter t3 build:bundle && pnpm --filter @t3tools/web build
+systemctl --user restart t3code-fork.service
 ```
+
+### Pairing
+
+Pairing always happens through `pair#token=` URLs minted against a specific
+base dir — a token minted for one install says nothing about another, and
+`pair` finds its server by reading `server-runtime.json` from that base dir:
+
+```bash
+# Local browser (the wrapper does this on every launch):
+node apps/server/dist/bin.mjs pair --base-dir ~/.t3-fork
+
+# Phone: publish over Tailscale Serve on a free HTTPS port
+# (443 on this tailnet is already taken by another mapping):
+node apps/server/dist/bin.mjs pair --base-dir ~/.t3-fork --tailscale \
+  --tailscale-serve-port 8443
+```
+
+The `--tailscale` path requires this user to be the Tailscale operator
+(one-time, needs sudo): `sudo tailscale set --operator=$USER`. The Serve
+mapping itself persists until `tailscale serve --https=8443 off`; re-run the
+pair command whenever a device needs a fresh token.
 
 ## Mobile
 
