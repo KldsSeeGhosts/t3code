@@ -44,13 +44,35 @@ Right-click a pull request link in a thread and choose **Link to thread** to sho
 in the sidebar. The thread settles when the linked pull request merges if **Auto-settle merged
 threads** is enabled. Right-click the same link and choose **Unlink from thread** to remove it.
 
-On web and desktop, drag a pinned thread to change its position. On mobile, open the thread's menu
-and choose **Move up** or **Move down**. The order is stored by the server and appears on your
-other connected devices.
+On web and desktop, drag a thread between sections to change its state. Drag a thread up into
+the pinned section to pin it at the spot you drop it; drag a pinned thread down into the active
+list to unpin it. Dragging a thread onto the **Settled** header settles it, and dragging a settled
+thread into the active list un-settles it. A snoozed thread can be dragged out of the snoozed
+shelf, which wakes it, but threads cannot be dragged into the shelf because snoozing needs a wake
+time. Dragging a pinned thread out of the pinned section does not ask for unpin confirmation.
+Pinned and active boundary labels appear only while dragging, without moving the rows. The
+destination boundary highlights and the thread shows which section it will land in. When there
+are no pins, drag to the top edge to pin a thread. Drop instructions also appear for empty sections
+and a collapsed settled shelf.
 
-If reordering is unavailable for one environment, update the T3 Code server running in that
-environment. Older servers can still pin and unpin threads, but do not understand synced ordering;
-their pinned threads keep the default newest-first order below the ones you have arranged.
+Drag within the pinned or active section to change its order. Other rows slide aside to show the
+spot where the thread will land. Drops into either section keep the position you choose. On
+mobile, open a pinned or active thread's menu and choose **Move up** or **Move down**. The server
+saves the order, so it survives a refresh and appears on your other connected devices.
+
+On web and desktop, the list also animates section changes made with thread actions such as
+**Pin**, **Settle**, and **Snooze**. These transitions respect your system's reduced-motion
+preference. While dragging, rows follow the insertion gap without replaying a second transition
+after the drop.
+
+New threads appear above the active threads you have arranged. Settling clears a thread's active
+position, so using **Un-settle** returns it to the top. Pinning and snoozing preserve its active
+position until you move it again. Thread activity does not change the order. The settled shelf
+continues to use settlement time.
+
+If dragging is unavailable for one environment, update the T3 Code server running in that
+environment. Pinned and active reordering require server support. Threads from older servers keep
+their default order until the server is updated.
 
 ## Panel motion
 
