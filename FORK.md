@@ -132,6 +132,26 @@ Pair the phone (recommended: tailnet):
 npx t3 pair --tailscale
 ```
 
+### Desktop launcher entry
+
+`~/.local/share/applications/t3code-fork.desktop` (Caelestia app grid,
+intentionally not a favorite) launches the fork server and opens its web UI.
+It is backed by `~/.local/bin/t3code-fork`, which:
+
+- runs the built server on fixed port `8960` (override with `T3_FORK_PORT`),
+- uses an isolated data dir `~/.t3-fork` — threads and settings do not mix
+  with the official desktop app's shared install; first launch asks the
+  browser to pair (`node apps/server/dist/bin.mjs pair --base-dir
+~/.t3-fork` prints a token if you need to re-pair),
+- logs to `~/.local/state/t3code-fork/server.log`.
+
+The UI is served from `apps/web/dist` (auto-discovered). After syncing
+upstream, rebuild both bundles or the launcher serves a stale or missing UI:
+
+```bash
+pnpm --filter t3 build:bundle && pnpm --filter @t3tools/web build
+```
+
 ## Mobile
 
 No mobile build is required for Pi support: the official iOS/Android apps are
