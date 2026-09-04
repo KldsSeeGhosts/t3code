@@ -413,8 +413,7 @@ export async function buildIncomingShareDraft(input: {
         // attachment directory so the composer stays valid after the source
         // file and App Group entry are gone, without inlining the bytes.
         persistedImageUri = await input.fileReader.persistFile(uri, imageName);
-        const sizeBytes =
-          (await input.fileReader.readSize?.(persistedImageUri)) ?? resolved?.contentSize ?? null;
+        const sizeBytes = (await input.fileReader.readSize?.(persistedImageUri)) ?? null;
         if (sizeBytes === null || sizeBytes <= 0) {
           warnings.push(`'${imageName}' is empty or could not be read.`);
           await releaseOwnedFiles(input.fileReader, [persistedImageUri]);

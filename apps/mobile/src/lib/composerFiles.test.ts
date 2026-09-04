@@ -233,6 +233,23 @@ describe("composer file attachments", () => {
       expect(mocks.copy).not.toHaveBeenCalled();
     });
 
+    it("keeps JPEG fallback filenames inside the owned directory", async () => {
+      mocks.open.mockImplementation(() => otherMagic());
+      mocks.pickMedia.mockResolvedValue({
+        canceled: false,
+        assets: [{ ...photo, fileName: "folder/../../photo\\name\n.HEIC", base64: "/9j/2Q==" }],
+      });
+
+      const result = await pickComposerImages({ existingCount: 0 });
+      const fileUri =
+        "file:///documents/t3-composer-attachments/attachment-id-folder-..-..-photo-name-.jpg";
+      expect(result.error).toBeNull();
+      expect(result.images[0]?.fileUri).toBe(fileUri);
+      expect(result.images[0]?.name).toBe("folder/../../photo\\name\n.jpg");
+      await removePersistedComposerAttachmentFile(fileUri);
+      expect(mocks.delete).toHaveBeenCalledExactlyOnceWith(fileUri);
+    });
+
     it("rejects an oversized JPEG fallback before writing it", async () => {
       const base64 = "/9j/" + "A".repeat(Math.ceil(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / 3) * 4);
       mocks.open.mockImplementation(() => otherMagic());

@@ -57,6 +57,14 @@ export function isFileBackedComposerAttachment(
 const OWNED_PASTED_IMAGE_DIRECTORY = "t3-composer-paste";
 const ATTACHMENT_COPY_CHUNK_BYTES = 64 * 1024;
 
+function sanitizeComposerAttachmentFileName(name: string) {
+  return (
+    Array.from(name, (character) =>
+      character === "/" || character === "\\" || character.charCodeAt(0) < 32 ? "-" : character,
+    ).join("") || "file"
+  );
+}
+
 export async function persistComposerAttachmentFile(
   uri: string,
   name: string,
@@ -65,10 +73,7 @@ export async function persistComposerAttachmentFile(
   const { Directory, File, FileMode, Paths } = await import("expo-file-system");
   const directory = new Directory(Paths.document, COMPOSER_ATTACHMENT_DIRECTORY);
   directory.create({ idempotent: true, intermediates: true });
-  const safeName =
-    Array.from(name, (character) =>
-      character === "/" || character === "\\" || character.charCodeAt(0) < 32 ? "-" : character,
-    ).join("") || "file";
+  const safeName = sanitizeComposerAttachmentFileName(name);
   const destination = new File(directory, `${uuidv4()}-${safeName}`);
   const source = new File(uri);
   const sourceSize = source.size;
@@ -153,7 +158,10 @@ async function persistComposerImageBase64(base64: string, name: string): Promise
   const { Directory, File, Paths } = await import("expo-file-system");
   const directory = new Directory(Paths.document, COMPOSER_ATTACHMENT_DIRECTORY);
   directory.create({ idempotent: true, intermediates: true });
-  const destination = new File(directory, `${uuidv4()}-${name}`);
+  const destination = new File(
+    directory,
+    `${uuidv4()}-${sanitizeComposerAttachmentFileName(name)}`,
+  );
   destination.create();
   try {
     await destination.write(base64, { encoding: "base64" });
