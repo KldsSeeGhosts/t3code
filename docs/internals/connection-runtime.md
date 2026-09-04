@@ -63,6 +63,11 @@ DPoP access-token expiry does not close a healthy RPC session. The socket
 authenticates at upgrade; HTTP requests obtain current authorization from
 `RemoteEnvironmentAuthorization` independently of that socket's lifetime.
 
+Server session listings retain unrevoked sessions with connected sockets even
+after their credentials expire. When an expired session's last socket disconnects,
+the session leaves the listing and emits a removal update. Expired credentials
+still cannot authorize new HTTP requests or socket upgrades.
+
 Before an authenticated HTTP request, the authorization service reuses a token
 outside its expiry margin or refreshes it. Concurrent requests for the same
 environment share the refresh. A rejected credential permits one refresh and

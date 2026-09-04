@@ -209,6 +209,9 @@ connection. Pull request diffs and provider settings keep working
 after the previous credential expires. A failed renewal affects that request;
 it does not disconnect an otherwise healthy conversation.
 
+An open connection stays visible in Settings → Connections after its original
+access credential expires.
+
 ## How Pairing Works
 
 The remote device does not need a long-lived secret up front.
