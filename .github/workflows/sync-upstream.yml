@@ -1,0 +1,74 @@
+# Fork automation — keep this fork current with pingdotgg/t3code nightly.
+#
+# Branch model (see FORK.md at the fork root):
+#   main      — clean mirror of upstream/main, fast-forward only.
+#   pi-driver — default branch: main + the fork's commits (Pi driver, this
+#               workflow). Scheduled workflows only run from the default
+#               branch, which is why the workflow lives here.
+#
+# Daily it fast-forwards main to upstream/main, merges main into pi-driver,
+# typechecks the server, and only then pushes. A failed typecheck leaves
+# pi-driver unpushed so a broken merge never lands; resolve locally (rerere
+# is on) and rerun via workflow_dispatch.
+
+name: Sync upstream nightly
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward main to upstream/main
+        run: |
+          git config user.name "t3-fork-sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/pingdotgg/t3code.git
+          git fetch upstream main
+          git fetch . refs/heads/main:refs/heads/main 2>/dev/null || git fetch origin main
+          git checkout main
+          git merge --ff-only upstream/main
+          git push origin main
+
+      - name: Merge main into pi-driver
+        run: |
+          git config rerere.enabled true
+          git checkout pi-driver
+          git merge main --no-edit
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: CI=true pnpm install --no-frozen-lockfile
+
+      - name: Typecheck server
+        run: pnpm --filter t3 typecheck
+
+      - name: Push pi-driver
+        run: git push origin pi-driver
+
+      # Informational only — a bundle failure should not roll back the
+      # merged tree, but it is an early warning for runtime-only breakage.
+      - name: Bundle server (non-blocking)
+        continue-on-error: true
+        run: pnpm --filter t3 build:bundle
