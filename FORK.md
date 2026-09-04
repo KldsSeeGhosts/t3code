@@ -177,6 +177,21 @@ The `--tailscale` path requires this user to be the Tailscale operator
 mapping itself persists until `tailscale serve --https=8443 off`; re-run the
 pair command whenever a device needs a fresh token.
 
+### Using the fork inside the official desktop app (Electron)
+
+The desktop app is a multi-environment control surface: the fork server can be
+added as a second environment next to the stock one, so the Pi harness runs
+inside the real Electron app instead of a browser tab.
+
+1. Mint a pairing URL for the fork:
+   `node apps/server/dist/bin.mjs pair --base-dir ~/.t3-fork`
+2. In T3 Code Nightly, open **Settings → Connections → Add environment** and
+   paste the `pair#token=` URL.
+
+Tokens are one-time and short-lived (re-run step 1 if it expires); after the
+first pairing the connection persists. The `t3code-fork` launcher entry stays
+useful as the browser path (same UI the phone sees).
+
 ## Mobile
 
 No mobile build is required for Pi support: the official iOS/Android apps are
