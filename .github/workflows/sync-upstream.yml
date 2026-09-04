@@ -40,15 +40,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/pingdotgg/t3code.git
           git fetch upstream main
-          git fetch . refs/heads/main:refs/heads/main 2>/dev/null || git fetch origin main
-          git checkout main
+          git checkout -B main origin/main
           git merge --ff-only upstream/main
           git push origin main
 
       - name: Merge main into pi-driver
         run: |
           git config rerere.enabled true
-          git checkout pi-driver
+          git checkout -B pi-driver origin/pi-driver
           git merge main --no-edit
 
       - uses: pnpm/action-setup@v4
