@@ -233,6 +233,19 @@ describe("composer file attachments", () => {
       expect(mocks.copy).not.toHaveBeenCalled();
     });
 
+    it("rejects an oversized JPEG fallback before writing it", async () => {
+      const base64 = "/9j/" + "A".repeat(Math.ceil(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / 3) * 4);
+      mocks.open.mockImplementation(() => otherMagic());
+      mocks.size.mockReturnValue(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES + 1);
+      mocks.pickMedia.mockResolvedValue({ canceled: false, assets: [{ ...photo, base64 }] });
+
+      await expect(pickComposerImages({ existingCount: 0 })).resolves.toEqual({
+        images: [],
+        error: "'photo.jpg' exceeds the 10 MB attachment limit.",
+      });
+      expect(mocks.write.mock.calls.length).toBe(0);
+    });
+
     it.each([
       { label: "no export", base64: null },
       // Android's quality-1 export is the raw original, not a JPEG transcode.

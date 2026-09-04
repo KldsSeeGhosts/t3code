@@ -55,20 +55,29 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
   >({});
   const [attachments, setAttachments] = useState<ReadonlyArray<DraftComposerImageAttachment>>([]);
   const attachmentsRef = useRef(attachments);
-  attachmentsRef.current = attachments;
-  // Attachments live in local state until submit copies them into the thread
-  // draft, but their image bytes already live in the app-owned attachment
-  // directory. Whatever is still here when the sheet unmounts was neither
-  // submitted nor removed; release those copies so dismissal does not leak
-  // storage. Cleanup is reference-checked, so submitted files stay.
-  useEffect(
-    () => () => {
-      if (attachmentsRef.current.length > 0) {
-        scheduleUnusedComposerAttachmentCleanup(attachmentsRef.current);
-      }
-    },
-    [],
-  );
+  const isMountedRef = useRef(true);
+  // Store file references before React commits, so closing the sheet can release them.
+  const replaceAttachments = useCallback((next: ReadonlyArray<DraftComposerImageAttachment>) => {
+    attachmentsRef.current = next;
+    setAttachments(next);
+  }, []);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      scheduleUnusedComposerAttachmentCleanup(attachmentsRef.current);
+    };
+  }, []);
+
+  function appendImages(images: ReadonlyArray<DraftComposerImageAttachment>): void {
+    if (!isMountedRef.current) {
+      scheduleUnusedComposerAttachmentCleanup(images);
+      return;
+    }
+    if (images.length > 0) {
+      replaceAttachments([...attachmentsRef.current, ...images]);
+    }
+  }
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
 
   const selectedLines = useMemo(
@@ -103,11 +112,9 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
       try {
         const images = await convertPastedImagesToAttachments({
           uris,
-          existingCount: attachments.length,
+          existingCount: attachmentsRef.current.length,
         });
-        if (images.length > 0) {
-          setAttachments((current) => [...current, ...images]);
-        }
+        appendImages(images);
       } catch (error) {
         console.error("[review comment] error converting pasted images", error);
       }
@@ -143,11 +150,9 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
   }, [selectedLines, selectedTheme, target]);
 
   async function handlePickImages(): Promise<void> {
-    const result = await pickComposerImages({ existingCount: attachments.length });
-    if (result.images.length > 0) {
-      setAttachments((current) => [...current, ...result.images]);
-    }
-    if (result.error) {
+    const result = await pickComposerImages({ existingCount: attachmentsRef.current.length });
+    appendImages(result.images);
+    if (result.error && isMountedRef.current) {
       setPendingConnectionError(result.error);
     }
   }
@@ -161,11 +166,11 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
       environmentId,
       threadId,
       text: formatReviewCommentContext(target, commentText),
-      attachments,
+      attachments: attachmentsRef.current,
     });
-    setAttachments([]);
+    replaceAttachments([]);
     dismissComposer();
-  }, [attachments, commentText, dismissComposer, environmentId, target, threadId]);
+  }, [commentText, dismissComposer, environmentId, replaceAttachments, target, threadId]);
 
   return (
     <View className="flex-1 bg-sheet">
@@ -291,10 +296,9 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
                         onPressPreview={setPreviewFile}
                         removeButtonPlacement="gutter"
                         onRemove={(imageId) => {
-                          const removed = attachments.find((image) => image.id === imageId);
-                          setAttachments((current) =>
-                            current.filter((image) => image.id !== imageId),
-                          );
+                          const current = attachmentsRef.current;
+                          const removed = current.find((image) => image.id === imageId);
+                          replaceAttachments(current.filter((image) => image.id !== imageId));
                           if (removed) {
                             scheduleUnusedComposerAttachmentCleanup([removed]);
                           }

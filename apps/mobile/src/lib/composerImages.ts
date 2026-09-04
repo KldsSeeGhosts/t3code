@@ -47,7 +47,7 @@ export type DraftComposerAttachment = DraftComposerImageAttachment | DraftCompos
 /** Any composer attachment whose bytes live in the app-owned attachment directory. */
 export type FileBackedComposerAttachment = DraftComposerAttachment & { readonly fileUri: string };
 
-/** Files have a local copy. Images can have one after a file-backed draft is restored. */
+/** Files and new images have local copies. Older images may still be inline. */
 export function isFileBackedComposerAttachment(
   attachment: DraftComposerAttachment,
 ): attachment is FileBackedComposerAttachment {
@@ -145,8 +145,11 @@ export async function persistComposerAttachmentFile(
   return destination.uri;
 }
 
-/** Lands in-memory image bytes (clipboard pastes) in the owned attachment directory. */
+/** Writes clipboard or picker JPEG bytes into the owned attachment directory. */
 async function persistComposerImageBase64(base64: string, name: string): Promise<string> {
+  if (estimateBase64ByteSize(base64) > PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) {
+    throw new Error(fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_IMAGE_BYTES));
+  }
   const { Directory, File, Paths } = await import("expo-file-system");
   const directory = new Directory(Paths.document, COMPOSER_ATTACHMENT_DIRECTORY);
   directory.create({ idempotent: true, intermediates: true });
