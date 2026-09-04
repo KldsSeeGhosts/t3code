@@ -1862,16 +1862,28 @@ const make = Effect.gen(function* () {
         const activeAssistantMessageId = Option.flatMap(segmentState, (state) =>
           Option.fromNullishOr(state.activeMessageId),
         );
+        const assistantSegmentPrefix = `${assistantCompletion.messageId}:segment:`;
+        const existingAssistantMessagesForItem = messages.filter(
+          (message) =>
+            message.role === "assistant" &&
+            message.turnId === turnId &&
+            (message.id === assistantCompletion.messageId ||
+              message.id.startsWith(assistantSegmentPrefix)),
+        );
+        const latestAssistantMessageForItem =
+          existingAssistantMessagesForItem[existingAssistantMessagesForItem.length - 1];
         const assistantMessageId = Option.getOrElse(
           activeAssistantMessageId,
-          () => assistantCompletion.messageId,
+          () => latestAssistantMessageForItem?.id ?? assistantCompletion.messageId,
         );
         const existingAssistantMessage = findMessageById(messages, assistantMessageId);
         const shouldApplyFallbackCompletionText =
           !existingAssistantMessage || existingAssistantMessage.text.length === 0;
 
         const shouldSkipRedundantCompletion =
-          Option.isSome(segmentState) && segmentState.value.activeMessageId === null;
+          Option.isNone(activeAssistantMessageId) &&
+          existingAssistantMessagesForItem.length > 0 &&
+          (assistantCompletion.fallbackText?.trim().length ?? 0) === 0;
 
         if (!shouldSkipRedundantCompletion) {
           if (turnId && Option.isNone(activeAssistantMessageId)) {

@@ -2668,6 +2668,50 @@ describe("ProviderRuntimeIngestion", () => {
     ).toBe(false);
   });
 
+  it("keeps item completion fallback text after a whitespace-only approval segment", async () => {
+    const harness = await createHarness();
+    const base = {
+      provider: ProviderDriverKind.make("codex"),
+      createdAt: "2026-03-28T06:29:00.000Z",
+      threadId: asThreadId("thread-1"),
+      turnId: asTurnId("turn-whitespace-approval-fallback"),
+    };
+
+    await harness.emitAndDrain([
+      { ...base, type: "turn.started", eventId: asEventId("whitespace-fallback-start") },
+      {
+        ...base,
+        type: "content.delta",
+        eventId: asEventId("whitespace-fallback-delta"),
+        itemId: asItemId("item-whitespace-fallback"),
+        payload: { streamKind: "assistant_text", delta: "\n\n" },
+      },
+      {
+        ...base,
+        type: "request.opened",
+        eventId: asEventId("whitespace-fallback-request"),
+        requestId: ApprovalRequestId.make("req-whitespace-fallback"),
+        payload: { requestType: "command_execution_approval", detail: "pwd" },
+      },
+      {
+        ...base,
+        type: "item.completed",
+        eventId: asEventId("whitespace-fallback-completed"),
+        itemId: asItemId("item-whitespace-fallback"),
+        payload: {
+          itemType: "assistant_message",
+          status: "completed",
+          detail: "final answer",
+        },
+      },
+    ]);
+
+    const messages = (await harness.readModel()).threads[0]?.messages ?? [];
+    expect(messages).toContainEqual(
+      expect.objectContaining({ text: "final answer", streaming: false }),
+    );
+  });
+
   it("starts a new buffered assistant message segment after approval and completes without duplication", async () => {
     const harness = await createHarness();
     const startedAt = "2026-03-28T06:07:00.000Z";
